@@ -110,33 +110,37 @@ contract EventContract is ERC721URIStorage, Ownable {
     }
 
     function mintTicket(string calldata eventId) external payable {
-        Event storage eventDetails = events[eventId];
+    Event storage eventDetails = events[eventId];
 
-        require(eventDetails.exists, "Event does not exist");
-        require(eventDetails.remainingTickets > 0, "No tickets remaining");
-        require(!hasTicketForEvent[msg.sender][eventId], "Already has ticket for this event");
-        require(msg.value == eventDetails.ticketPrice, "Incorrect payment amount");
+    require(eventDetails.exists, "Event does not exist");
+    require(eventDetails.remainingTickets > 0, "No tickets remaining");
+    require(!hasTicketForEvent[msg.sender][eventId], "Already has ticket for this event");
+    require(msg.value == eventDetails.ticketPrice, "Incorrect payment amount");
 
-        _tokenIds.increment();
-        uint256 newTokenId = _tokenIds.current();
+    _tokenIds.increment();
+    uint256 newTokenId = _tokenIds.current();
 
-        string memory tokenURI = generateMetadata(eventId, newTokenId);
-        _setTokenURI(newTokenId, tokenURI);
+    // First mint the token
+    _safeMint(msg.sender, newTokenId);
 
-        _safeMint(msg.sender, newTokenId);
-        ticketToEvent[newTokenId] = eventId;
-        eventDetails.remainingTickets--;
-        mintedTickets[eventId]++;
+    // Then set the token URI
+    string memory tokenURI = generateMetadata(eventId, newTokenId);
+    _setTokenURI(newTokenId, tokenURI);
 
-        userEvents[msg.sender].push(eventId);
-        hasTicketForEvent[msg.sender][eventId] = true;
+    // Rest of the function remains the same
+    ticketToEvent[newTokenId] = eventId;
+    eventDetails.remainingTickets--;
+    mintedTickets[eventId]++;
 
-        (bool sent, ) = payable(eventDetails.eventOwner).call{value: msg.value}("");
-        require(sent, "Failed to send payment to event owner");
+    userEvents[msg.sender].push(eventId);
+    hasTicketForEvent[msg.sender][eventId] = true;
 
-        emit TicketMinted(newTokenId, eventId, msg.sender);
-        emit PaymentReceived(msg.sender, msg.value);
-    }
+    (bool sent, ) = payable(eventDetails.eventOwner).call{value: msg.value}("");
+    require(sent, "Failed to send payment to event owner");
+
+    emit TicketMinted(newTokenId, eventId, msg.sender);
+    emit PaymentReceived(msg.sender, msg.value);
+}
 
     function getUserEvents(address user) external view returns (string[] memory) {
         return userEvents[user];
